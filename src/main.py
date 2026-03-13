@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from content.market_buckets import split_markets_by_bucket
+
 from content.content_selector import (
     select_best_signal,
     select_best_snapshot_market,
     select_diverse_top_markets,
 )
 from content.post_builder import (
+    build_bucket_snapshot_post,
     build_market_snapshot_post,
     build_signal_post,
     build_top_markets_post,
@@ -63,6 +66,33 @@ def main() -> None:
         top_post = build_top_markets_post(diverse_top_markets, captured_at, limit=5)
         print("\nBest diversified top-markets post:\n")
         print(top_post)
+
+    # Bucketed snapshot posts
+    buckets = split_markets_by_bucket(priced_markets)
+
+    macro_markets = select_diverse_top_markets(buckets["macro"], limit=5)
+    political_markets = select_diverse_top_markets(buckets["political"], limit=5)
+
+    if macro_markets:
+        macro_post = build_bucket_snapshot_post(
+            macro_markets,
+            captured_at,
+            bucket_name="macro",
+            limit=5,
+        )
+        print("\nMacro snapshot post:\n")
+        print(macro_post)
+
+    if political_markets:
+        political_post = build_bucket_snapshot_post(
+            political_markets,
+            captured_at,
+            bucket_name="political",
+            limit=5,
+        )
+        print("\nPolitical snapshot post:\n")
+        print(political_post)
+
 
     capture_times = get_distinct_capture_times(limit=2)
     if len(capture_times) < 2:

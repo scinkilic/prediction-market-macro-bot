@@ -146,3 +146,48 @@ Source: Kalshi
 
     return post
 
+def build_bucket_snapshot_post(
+    markets: list[dict],
+    captured_at: str,
+    bucket_name: str,
+    limit: int = 5,
+) -> str:
+    timestamp = datetime.fromisoformat(captured_at).strftime("%b %d %Y %H:%M UTC")
+
+    if not markets:
+        return f"""
+{bucket_name.title()} prediction market snapshot:
+
+No relevant markets found.
+
+As of: {timestamp}
+Source: Kalshi
+""".strip()
+
+    lines = []
+
+    for m in markets[:limit]:
+        price = (
+            m.get("last_price")
+            or m.get("yes_bid")
+            or m.get("yes_ask")
+        )
+
+        price_str = format_price(price)
+        title = m.get("title", "Unknown")
+
+        lines.append(f"{price_str} — {title}")
+
+    body = "\n".join(lines)
+
+    post = f"""
+{bucket_name.title()} prediction market snapshot:
+
+{body}
+
+As of: {timestamp}
+Source: Kalshi
+""".strip()
+
+    return post
+
