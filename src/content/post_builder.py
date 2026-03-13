@@ -191,3 +191,74 @@ Source: Kalshi
 
     return post
 
+def build_daily_brief_post(
+    macro_markets: list[dict],
+    political_markets: list[dict],
+    signals: list[dict],
+    captured_at: str,
+) -> str:
+    timestamp = datetime.fromisoformat(captured_at).strftime("%b %d %Y %H:%M UTC")
+
+    lines = ["Prediction market update:", ""]
+
+    # Macro summary
+    if macro_markets:
+        top_macro = macro_markets[0]
+        macro_price = (
+            top_macro.get("last_price")
+            or top_macro.get("yes_bid")
+            or top_macro.get("yes_ask")
+        )
+        lines.append(
+            f"{top_macro.get('title', 'Top macro market')} is currently at {format_price(macro_price)}."
+        )
+        lines.append("")
+
+    # Political summary
+    if political_markets:
+        top_political = political_markets[0]
+        political_price = (
+            top_political.get("last_price")
+            or top_political.get("yes_bid")
+            or top_political.get("yes_ask")
+        )
+
+        lines.append(
+            f"{top_political.get('title', 'Top political market')} is currently at {format_price(political_price)}."
+        )
+
+        if len(political_markets) > 1:
+            second = political_markets[1]
+            second_price = (
+                second.get("last_price")
+                or second.get("yes_bid")
+                or second.get("yes_ask")
+            )
+            lines.append(
+                f"{second.get('title', 'Second political market')} is at {format_price(second_price)}."
+            )
+        lines.append("")
+
+    # Signal summary
+    if signals:
+        top_signal = signals[0]
+        prev_price = format_price(top_signal.get("previous_price"))
+        curr_price = format_price(top_signal.get("current_price"))
+        raw_change = _safe_float(top_signal.get("price_change")) or 0.0
+        change_points = raw_change * 100.0
+
+        direction = "rose" if raw_change > 0 else "fell"
+
+        lines.append(
+            f"Biggest recent move: {top_signal.get('title', 'Unknown market')} {direction} from {prev_price} to {curr_price} ({change_points:+.1f} pts)."
+        )
+        lines.append("")
+    else:
+        lines.append("No major short-term market moves were detected in the latest snapshot.")
+        lines.append("")
+
+    lines.append(f"As of: {timestamp}")
+    lines.append("Source: Kalshi")
+
+    return "\n".join(lines).strip()
+

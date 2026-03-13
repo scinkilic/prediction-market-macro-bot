@@ -13,6 +13,7 @@ from content.content_selector import (
 )
 from content.post_builder import (
     build_bucket_snapshot_post,
+    build_daily_brief_post,
     build_market_snapshot_post,
     build_signal_post,
     build_top_markets_post,
@@ -137,6 +138,17 @@ def main() -> None:
             f"{change['previous_price']} -> {change['current_price']} "
             f"({change['price_change']:+.6f})"
         )
+
+    daily_brief = build_daily_brief_post(
+        macro_markets=macro_markets,
+        political_markets=political_markets,
+        signals=signals,
+        captured_at=captured_at,
+    )
+
+    print("\nDaily brief post:\n")
+    print(daily_brief)
+
 
     if signals:
         print("\nSignals over threshold:")
