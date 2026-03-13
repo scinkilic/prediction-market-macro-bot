@@ -4,21 +4,25 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import requests
 
-BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
-MARKETS_ENDPOINT = f"{BASE_URL}/markets"
-DEFAULT_TIMEOUT = 10
-RAW_DATA_DIR = Path("data/raw")
+from config import (
+    BACKOFF_SECONDS,
+    BASE_URL,
+    DEFAULT_TIMEOUT,
+    MARKETS_PER_SERIES_LIMIT,
+    MAX_RETRIES,
+    MAX_SERIES_TO_TRACK,
+    REQUEST_SLEEP_SECONDS,
+    SERIES_CATEGORY_ALLOWLIST,
+    SERIES_KEYWORD_ALLOWLIST,
+)
 
-# Keep this conservative, especially while your trading bot is also running
-DEFAULT_PAGE_LIMIT = 50
-MAX_PAGES = 3
-REQUEST_SLEEP_SECONDS = 1.5
-MAX_RETRIES = 5
-BACKOFF_SECONDS = 3.0
+SERIES_ENDPOINT = f"{BASE_URL}/series"
+MARKETS_ENDPOINT = f"{BASE_URL}/markets"
+RAW_DATA_DIR = Path("data/raw")
 
 
 class KalshiClient:
@@ -26,21 +30,17 @@ class KalshiClient:
         self.timeout = timeout
         self.session = requests.Session()
 
-    def _get_with_backoff(self, params: Dict[str, Any]) -> requests.Response:
+    def _get_with_backoff(self, url: str, params: Dict[str, Any]) -> requests.Response:
         last_error: Optional[Exception] = None
 
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                response = self.session.get(
-                    MARKETS_ENDPOINT,
-                    params=params,
-                    timeout=self.timeout,
-                )
+                response = self.session.get(url, params=params, timeout=self.timeout)
 
                 if response.status_code == 429:
                     sleep_s = BACKOFF_SECONDS * attempt
                     print(
-                        f"Rate limited by Kalshi (429). "
+                        f"Rate limited (429) for {url}. "
                         f"Sleeping {sleep_s:.1f}s before retry {attempt}/{MAX_RETRIES}..."
                     )
                     time.sleep(sleep_s)
@@ -53,58 +53,103 @@ class KalshiClient:
                 last_error = exc
                 sleep_s = BACKOFF_SECONDS * attempt
                 print(
-                    f"Request failed on attempt {attempt}/{MAX_RETRIES}: {exc}. "
+                    f"Request failed for {url} on attempt {attempt}/{MAX_RETRIES}: {exc}. "
                     f"Sleeping {sleep_s:.1f}s..."
                 )
                 time.sleep(sleep_s)
 
-        raise RuntimeError(f"Failed to fetch markets after retries. Last error: {last_error}")
+        raise RuntimeError(f"Failed request for {url}. Last error: {last_error}")
 
-    def fetch_markets(
+    def fetch_series_list(self) -> List[Dict[str, Any]]:
+        response = self._get_with_backoff(
+            SERIES_ENDPOINT,
+            {
+                "include_volume": "true",
+            },
+        )
+        payload = response.json()
+        return payload.get("series", [])
+
+    @staticmethod
+    def _series_matches_theme(series: Dict[str, Any]) -> bool:
+        category = (series.get("category") or "").strip().lower()
+        title = (series.get("title") or "").lower()
+        tags = [str(tag).lower() for tag in (series.get("tags") or [])]
+
+        if category in SERIES_CATEGORY_ALLOWLIST:
+            return True
+
+        combined = " ".join([title] + tags)
+        return any(keyword in combined for keyword in SERIES_KEYWORD_ALLOWLIST)
+
+    def select_target_series(self, series_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        matched = [s for s in series_list if self._series_matches_theme(s)]
+
+        matched.sort(
+            key=lambda s: float(s.get("volume_fp") or 0.0),
+            reverse=True,
+        )
+
+        return matched[:MAX_SERIES_TO_TRACK]
+
+    def fetch_markets_for_series(
         self,
-        limit: int = DEFAULT_PAGE_LIMIT,
-        status: Optional[str] = "open",
-        event_ticker: Optional[str] = None,
-        max_pages: int = MAX_PAGES,
+        series_ticker: str,
+        status: str = "open",
+        limit: int = MARKETS_PER_SERIES_LIMIT,
     ) -> List[Dict[str, Any]]:
-        all_markets: List[Dict[str, Any]] = []
-        cursor: Optional[str] = None
-        page_count = 0
+        response = self._get_with_backoff(
+            MARKETS_ENDPOINT,
+            {
+                "series_ticker": series_ticker,
+                "status": status,
+                "limit": limit,
+                "mve_filter": "exclude",
+            },
+        )
+        payload = response.json()
+        return payload.get("markets", [])
 
-        while True:
-            page_count += 1
-            if page_count > max_pages:
-                print(f"Reached max_pages={max_pages}, stopping pagination.")
-                break
+    def fetch_target_markets(self) -> List[Dict[str, Any]]:
+        all_series = self.fetch_series_list()
+        target_series = self.select_target_series(all_series)
 
-            params: Dict[str, Any] = {"limit": limit}
-            if cursor:
-                params["cursor"] = cursor
-            if status:
-                params["status"] = status
-            if event_ticker:
-                params["event_ticker"] = event_ticker
+        print(f"Fetched {len(all_series)} total series.")
+        print(f"Selected {len(target_series)} target series.\n")
 
-            print(f"Fetching page {page_count} with params={params}")
-            response = self._get_with_backoff(params)
-            payload = response.json()
-
-            markets = payload.get("markets", [])
-            all_markets.extend(markets)
-
+        for s in target_series:
             print(
-                f"Fetched {len(markets)} markets on page {page_count}. "
-                f"Running total: {len(all_markets)}"
+                {
+                    "ticker": s.get("ticker"),
+                    "title": s.get("title"),
+                    "category": s.get("category"),
+                    "volume_fp": s.get("volume_fp"),
+                    "tags": s.get("tags"),
+                }
             )
 
-            cursor = payload.get("cursor")
-            if not cursor:
-                print("No further cursor returned. Pagination complete.")
-                break
+        deduped: Dict[str, Dict[str, Any]] = {}
+
+        for series in target_series:
+            series_ticker = series.get("ticker")
+            if not series_ticker:
+                continue
+
+            print(f"\nFetching markets for series {series_ticker}...")
+            markets = self.fetch_markets_for_series(series_ticker=series_ticker)
+
+            print(f"Found {len(markets)} markets in series {series_ticker}.")
+
+            for market in markets:
+                simplified = self.simplify_market(market)
+                simplified["series_ticker"] = series_ticker
+                simplified["series_title"] = series.get("title")
+                simplified["series_category"] = series.get("category")
+                deduped[simplified["ticker"]] = simplified
 
             time.sleep(REQUEST_SLEEP_SECONDS)
 
-        return all_markets
+        return list(deduped.values())
 
     @staticmethod
     def simplify_market(market: Dict[str, Any]) -> Dict[str, Any]:
@@ -115,11 +160,23 @@ class KalshiClient:
             "status": market.get("status"),
             "event_ticker": market.get("event_ticker"),
             "market_type": market.get("market_type"),
-            "yes_bid": market.get("yes_bid"),
-            "yes_ask": market.get("yes_ask"),
-            "last_price": market.get("last_price"),
-            "volume": market.get("volume"),
-            "open_interest": market.get("open_interest"),
+
+            # New fixed-point price fields
+            "yes_bid": market.get("yes_bid_dollars"),
+            "yes_ask": market.get("yes_ask_dollars"),
+            "last_price": market.get("last_price_dollars"),
+
+            # New fixed-point size / volume fields
+            "volume": market.get("volume_fp"),
+            "open_interest": market.get("open_interest_fp"),
+
+            # Extra useful fields
+            "yes_bid_size": market.get("yes_bid_size_fp"),
+            "yes_ask_size": market.get("yes_ask_size_fp"),
+            "liquidity": market.get("liquidity_dollars"),
+            "previous_price": market.get("previous_price_dollars"),
+            "notional_value": market.get("notional_value_dollars"),
+
             "close_time": market.get("close_time"),
             "expiration_time": market.get("expiration_time"),
             "result": market.get("result"),
@@ -130,7 +187,7 @@ class KalshiClient:
     def save_raw_markets(markets: List[Dict[str, Any]]) -> Path:
         RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        output_path = RAW_DATA_DIR / f"kalshi_markets_{timestamp}.json"
+        output_path = RAW_DATA_DIR / f"kalshi_target_markets_{timestamp}.json"
 
         with output_path.open("w", encoding="utf-8") as f:
             json.dump(markets, f, indent=2)
@@ -140,19 +197,19 @@ class KalshiClient:
 
 def main() -> None:
     client = KalshiClient()
+    markets = client.fetch_target_markets()
 
-    # Keep this small while your trading bot is live
-    markets = client.fetch_markets(limit=25, max_pages=2)
+    print(f"\nFetched {len(markets)} total deduped target markets.\n")
 
-    print(f"\nFetched {len(markets)} total markets.")
+    if not markets:
+        print("No markets found.")
+        return
 
-    simplified = [client.simplify_market(m) for m in markets[:10]]
-    print("\nFirst 10 simplified markets:\n")
-    print(json.dumps(simplified, indent=2))
+    print("First raw simplified market:\n")
+    print(json.dumps(markets[0], indent=2))
 
-    output_path = client.save_raw_markets(markets)
-    print(f"\nSaved raw markets to: {output_path}")
-
+    path = client.save_raw_markets(markets)
+    print(f"\nSaved raw target markets to: {path}")
 
 if __name__ == "__main__":
     main()
