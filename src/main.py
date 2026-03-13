@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 
 from content.market_buckets import split_markets_by_bucket
 
+from content.event_deduper import select_best_market_per_event
+
 from content.content_selector import (
     select_best_signal,
     select_best_snapshot_market,
@@ -70,8 +72,13 @@ def main() -> None:
     # Bucketed snapshot posts
     buckets = split_markets_by_bucket(priced_markets)
 
-    macro_markets = select_diverse_top_markets(buckets["macro"], limit=5)
-    political_markets = select_diverse_top_markets(buckets["political"], limit=5)
+    macro_candidates = select_best_market_per_event(buckets["macro"])
+
+    # Political markets should NOT be deduplicated by event
+    political_candidates = buckets["political"]
+
+    macro_markets = select_diverse_top_markets(macro_candidates, limit=5)
+    political_markets = select_diverse_top_markets(political_candidates, limit=5)
 
     if macro_markets:
         macro_post = build_bucket_snapshot_post(
@@ -113,7 +120,7 @@ def main() -> None:
     signals = compare_snapshots(
         previous_rows=previous_rows,
         current_rows=current_rows,
-        min_price_change=0.01,
+        min_price_change=0.009,
     )
 
     print(f"\nCompared snapshots:")
