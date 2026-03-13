@@ -6,6 +6,8 @@ from content.market_buckets import split_markets_by_bucket
 
 from content.brief_selector import select_best_brief_market
 
+from content.post_saver import save_post
+
 from content.event_deduper import select_best_market_per_event
 
 from content.content_selector import (
@@ -62,6 +64,7 @@ def main() -> None:
     best_snapshot_market = select_best_snapshot_market(priced_markets)
     if best_snapshot_market:
         single_post = build_market_snapshot_post(best_snapshot_market, captured_at)
+        save_post("best_single_market.txt", single_post)
         print("\nBest single-market post:\n")
         print(single_post)
 
@@ -69,6 +72,7 @@ def main() -> None:
     diverse_top_markets = select_diverse_top_markets(priced_markets, limit=5)
     if diverse_top_markets:
         top_post = build_top_markets_post(diverse_top_markets, captured_at, limit=5)
+        save_post("best_diversified_snapshot.txt", top_post)
         print("\nBest diversified top-markets post:\n")
         print(top_post)
 
@@ -90,6 +94,7 @@ def main() -> None:
             bucket_name="macro",
             limit=5,
         )
+        save_post("macro_snapshot.txt", macro_post)
         print("\nMacro snapshot post:\n")
         print(macro_post)
 
@@ -100,6 +105,7 @@ def main() -> None:
             bucket_name="political",
             limit=5,
         )
+        save_post("political_snapshot.txt", political_post)
         print("\nPolitical snapshot post:\n")
         print(political_post)
 
@@ -152,6 +158,7 @@ def main() -> None:
         captured_at=captured_at,
     )
 
+    save_post("daily_brief.txt", daily_brief)
     print("\nDaily brief post:\n")
     print(daily_brief)
 
@@ -169,10 +176,12 @@ def main() -> None:
         best_signal = select_best_signal(signals, market_lookup)
         if best_signal:
             signal_post = build_signal_post(best_signal, captured_at)
+            save_post("best_signal.txt", signal_post)
             print("\nBest signal post:\n")
             print(signal_post)
 
         top_movers_post = build_top_movers_post(signals, captured_at, limit=5)
+        save_post("top_movers.txt", top_movers_post)
         print("\nTop movers post:\n")
         print(top_movers_post)
 
