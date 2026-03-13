@@ -72,6 +72,7 @@ def score_market_for_snapshot(market: dict, now: datetime | None = None) -> floa
 def score_signal_for_post(signal: dict, market_lookup: dict[str, dict]) -> float:
     """
     Score a detected move for whether it deserves a post.
+    Strongly favor move magnitude first, then use liquidity as a tie-breaker.
     """
     abs_change = _safe_float(signal.get("abs_price_change"))
     market = market_lookup.get(signal.get("ticker", ""), {})
@@ -79,14 +80,15 @@ def score_signal_for_post(signal: dict, market_lookup: dict[str, dict]) -> float
     open_interest = _safe_float(market.get("open_interest"))
 
     signal_type = signal.get("signal_type", "price_move")
+
     threshold_bonus = 0.0
     if signal_type != "price_move":
-        threshold_bonus = 2.0
+        threshold_bonus = 3.0
 
     score = (
-        abs_change * 100.0
-        + volume * 0.00001
-        + open_interest * 0.00002
+        abs_change * 1000.0
+        + volume * 0.000002
+        + open_interest * 0.000005
         + threshold_bonus
     )
     return score

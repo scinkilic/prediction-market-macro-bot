@@ -105,3 +105,44 @@ Source: Kalshi
 
     return post
 
+def build_top_movers_post(signals: list[dict], captured_at: str, limit: int = 5) -> str:
+    timestamp = datetime.fromisoformat(captured_at).strftime("%b %d %Y %H:%M UTC")
+
+    if not signals:
+        return f"""
+Top prediction market movers:
+
+No meaningful movers detected.
+
+As of: {timestamp}
+Source: Kalshi
+""".strip()
+
+    lines = []
+
+    for signal in signals[:limit]:
+        title = signal.get("title", "Unknown market")
+        previous_price = format_price(signal.get("previous_price"))
+        current_price = format_price(signal.get("current_price"))
+
+        raw_change = _safe_float(signal.get("price_change")) or 0.0
+        change_points = raw_change * 100.0
+
+        lines.append(
+            f"{title}\n"
+            f"{previous_price} → {current_price} ({change_points:+.1f} pts)"
+        )
+
+    body = "\n\n".join(lines)
+
+    post = f"""
+Top prediction market movers:
+
+{body}
+
+As of: {timestamp}
+Source: Kalshi
+""".strip()
+
+    return post
+

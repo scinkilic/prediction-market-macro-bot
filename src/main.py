@@ -11,6 +11,7 @@ from content.post_builder import (
     build_market_snapshot_post,
     build_signal_post,
     build_top_markets_post,
+    build_top_movers_post,
 )
 from data_sources.kalshi_client import KalshiClient
 from signals.snapshot_compare import build_all_changes, compare_snapshots
@@ -115,6 +116,10 @@ def main() -> None:
             signal_post = build_signal_post(best_signal, captured_at)
             print("\nBest signal post:\n")
             print(signal_post)
+
+        top_movers_post = build_top_movers_post(signals, captured_at, limit=5)
+        print("\nTop movers post:\n")
+        print(top_movers_post)
 
 
 if __name__ == "__main__":
