@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 
 from content.market_buckets import split_markets_by_bucket
 
+from content.brief_selector import select_best_brief_market
+
 from content.event_deduper import select_best_market_per_event
 
 from content.content_selector import (
@@ -139,9 +141,13 @@ def main() -> None:
             f"({change['price_change']:+.6f})"
         )
 
+    best_macro_brief = select_best_brief_market(buckets["macro"])
+    best_political_brief = select_best_brief_market(buckets["political"])
+
+
     daily_brief = build_daily_brief_post(
-        macro_markets=macro_markets,
-        political_markets=political_markets,
+        macro_markets=[best_macro_brief] if best_macro_brief else [],
+        political_markets=[best_political_brief] if best_political_brief else [],
         signals=signals,
         captured_at=captured_at,
     )
