@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from content.content_selector import (
+    select_best_signal,
+    select_best_snapshot_market,
+    select_diverse_top_markets,
+)
 from content.post_builder import (
     build_market_snapshot_post,
+    build_signal_post,
     build_top_markets_post,
 )
 from data_sources.kalshi_client import KalshiClient
@@ -41,44 +47,20 @@ def main() -> None:
     print(f"\nCaptured snapshot time: {captured_at}")
     print(f"Inserted {inserted} target market snapshots into SQLite database.")
 
-    # ------------------------------------------------
-    # Example generated single-market post
-    # ------------------------------------------------
-    if priced_markets:
-        example_market = priced_markets[0]
+    market_lookup = {m.get("ticker"): m for m in priced_markets if m.get("ticker")}
 
-        single_post = build_market_snapshot_post(
-            example_market,
-            captured_at,
-        )
-
-        print("\nExample generated single-market post:\n")
+    # Best current-state market
+    best_snapshot_market = select_best_snapshot_market(priced_markets)
+    if best_snapshot_market:
+        single_post = build_market_snapshot_post(best_snapshot_market, captured_at)
+        print("\nBest single-market post:\n")
         print(single_post)
 
-        # Sort markets by highest current probability for a cleaner leaderboard
-        def sort_price(market: dict) -> float:
-            for field in ("last_price", "yes_bid", "yes_ask"):
-                value = market.get(field)
-                if value is not None:
-                    try:
-                        return float(value)
-                    except (TypeError, ValueError):
-                        return 0.0
-            return 0.0
-
-        ranked_markets = sorted(
-            priced_markets,
-            key=sort_price,
-            reverse=True,
-        )
-
-        top_post = build_top_markets_post(
-            ranked_markets,
-            captured_at,
-            limit=5,
-        )
-
-        print("\nExample generated top-markets post:\n")
+    # Best diversified top snapshot
+    diverse_top_markets = select_diverse_top_markets(priced_markets, limit=5)
+    if diverse_top_markets:
+        top_post = build_top_markets_post(diverse_top_markets, captured_at, limit=5)
+        print("\nBest diversified top-markets post:\n")
         print(top_post)
 
     capture_times = get_distinct_capture_times(limit=2)
@@ -128,6 +110,13 @@ def main() -> None:
                 f"({signal['price_change']:+.6f})"
             )
 
+        best_signal = select_best_signal(signals, market_lookup)
+        if best_signal:
+            signal_post = build_signal_post(best_signal, captured_at)
+            print("\nBest signal post:\n")
+            print(signal_post)
+
 
 if __name__ == "__main__":
     main()
+
