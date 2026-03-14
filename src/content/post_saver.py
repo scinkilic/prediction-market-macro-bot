@@ -52,3 +52,17 @@ def save_both(run_timestamp: str, filename: str, content: str) -> tuple[Path, Pa
     archive_path = save_post_archive(run_timestamp, filename, content)
     return latest_path, archive_path
 
+
+def delete_latest_post(filename: str) -> bool:
+    """
+    Delete a file from data/generated/latest if it exists.
+    Returns True if deleted, False if it was not present.
+    """
+    ensure_output_dirs()
+
+    path = LATEST_DIR / filename
+    if path.exists() and path.is_file():
+        path.unlink()
+        return True
+    return False
+

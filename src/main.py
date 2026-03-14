@@ -18,7 +18,7 @@ from content.post_builder import (
     build_top_markets_post,
     build_top_movers_post,
 )
-from content.post_saver import save_both
+from content.post_saver import delete_latest_post, save_both
 from data_sources.kalshi_client import KalshiClient
 from signals.snapshot_compare import build_all_changes, compare_snapshots
 from storage.db import (
@@ -76,8 +76,6 @@ def main() -> None:
     buckets = split_markets_by_bucket(priced_markets)
 
     macro_candidates = select_best_market_per_event(buckets["macro"])
-
-    # Political markets should NOT be deduplicated by event
     political_candidates = buckets["political"]
 
     macro_markets = select_diverse_top_markets(macro_candidates, limit=5)
@@ -177,6 +175,12 @@ def main() -> None:
         save_both(captured_at, "top_movers.txt", top_movers_post)
         print("\nTop movers post:\n")
         print(top_movers_post)
+    else:
+        deleted_best_signal = delete_latest_post("best_signal.txt")
+        deleted_top_movers = delete_latest_post("top_movers.txt")
+
+        if deleted_best_signal or deleted_top_movers:
+            print("\nNo signals detected. Cleared stale signal-based files from latest/.")
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@ Prediction market move:
 
 Will the Federal Reserve Cut rates by 25bps at their June 2026 meeting?
 
-Odds rose from 34.0% to 39.0%
-Move: +5.0 points
+Odds fell from 40.0% to 34.0%
+Move: -6.0 points
 
-As of: Mar 14 2026 00:28 UTC
+As of: Mar 14 2026 00:15 UTC
 Source: Kalshi
