@@ -2,9 +2,9 @@ Macro prediction market snapshot:
 
 1.0% — Will the Federal Reserve Cut rates by 25bps at their March 2026 meeting?
 8.0% — Will the Federal Reserve Cut rates by 25bps at their April 2026 meeting?
-59.0% — Will the Federal Reserve Hike rates by 0bps at their June 2026 meeting?
+40.0% — Will the Federal Reserve Cut rates by 25bps at their June 2026 meeting?
 56.0% — Will the Federal Reserve Hike rates by 0bps at their January 2028 meeting?
 60.0% — Will the Federal Reserve Hike rates by 0bps at their July 2026 meeting?
 
-As of: Mar 13 2026 21:10 UTC
+As of: Mar 14 2026 00:10 UTC
 Source: Kalshi

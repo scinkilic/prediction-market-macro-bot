@@ -4,7 +4,7 @@ Prediction market snapshot:
 28.0% — Will Gavin Newsom be the Democratic Presidential nominee in 2028?
 99.0% — Will the Federal Reserve Hike rates by 0bps at their March 2026 meeting?
 1.0% — Will the Federal Reserve Cut rates by >25bps at their March 2026 meeting?
-2.0% — Will Stephen A. Smith be the Democratic Presidential nominee in 2028?
+1.0% — Will Stephen A. Smith be the Democratic Presidential nominee in 2028?
 
-As of: Mar 13 2026 21:10 UTC
+As of: Mar 14 2026 00:10 UTC
 Source: Kalshi
